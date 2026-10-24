@@ -66,7 +66,7 @@ final class SystemStats {
             DispatchQueue.main.async {
                 PeekCenter.shared.post(Peek(symbol: kind == "cpu" ? "cpu.fill" : "memorychip.fill", tint: .orange,
                                             title: title, subtitle: top.isEmpty ? nil : top, tool: .stats,
-                                            duration: 5, style: .warning))
+                                            duration: 5, style: .warning, short: (kind == "cpu" ? "CPU " : "RAM ") + (title.components(separatedBy: " ").last ?? "")))
             }
         }
     }
@@ -240,7 +240,7 @@ final class SystemStats {
             lowAlerted = p
             PeekCenter.shared.post(Peek(symbol: "battery.25percent", tint: .red, title: "Battery at \(p)%",
                                         subtitle: timeRemaining.map { "About \(Fmt.duration(Double($0) * 60)) left" },
-                                        tool: .stats, duration: 5, style: .warning))
+                                        tool: .stats, duration: 5, style: .warning, short: "\(p)%"))
         }
     }
 }

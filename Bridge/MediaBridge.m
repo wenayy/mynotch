@@ -12,6 +12,7 @@
 #import <Foundation/Foundation.h>
 #include <dlfcn.h>
 #include <unistd.h>
+#include <math.h>
 
 typedef void (*MRGetInfoFn)(dispatch_queue_t, void (^)(CFDictionaryRef));
 typedef void (*MRGetIsPlayingFn)(dispatch_queue_t, void (^)(Boolean));
@@ -32,6 +33,16 @@ static MRGetClientFn pGetClient;
 static MRClientStringFn pClientBundle;
 static MRClientStringFn pClientParentBundle;
 
+// Every app with a media session (Safari music + Chrome video at the same time, …).
+typedef void (*MRGetClientsFn)(dispatch_queue_t, void (^)(CFArrayRef));
+typedef id (*MRGetOriginFn)(void);
+typedef void (*MRStateForPlayerFn)(id, dispatch_queue_t, void (^)(unsigned int));
+static MRGetClientsFn pGetClients;
+static MRGetOriginFn pGetOrigin;
+static MRStateForPlayerFn pStateForPlayer;
+static NSDictionary<NSString *, id> *gClients;   // app id → MRClient
+static NSString *gLastClients;
+
 static dispatch_queue_t gQueue;
 static NSUInteger gLastArtHash = 0;
 static NSString *gLastPayload = nil;
@@ -50,7 +61,8 @@ static void emit(NSDictionary *dict) {
 
 static id plainValue(id v) {
     if (!v || v == [NSNull null]) return nil;
-    if ([v isKindOfClass:[NSString class]] || [v isKindOfClass:[NSNumber class]]) return v;
+    if ([v isKindOfClass:[NSString class]]) return v;
+    if ([v isKindOfClass:[NSNumber class]]) return isfinite([v doubleValue]) ? v : nil;   // live streams report ∞ duration
     if ([v isKindOfClass:[NSDate class]]) return @([(NSDate *)v timeIntervalSince1970]);
     return nil;
 }
@@ -135,9 +147,70 @@ static void scheduleRefresh(void) {
     });
 }
 
+static NSString *clientID(id client) {
+    NSString *parent = pClientParentBundle ? (__bridge NSString *)pClientParentBundle(client) : nil;
+    NSString *bundle = pClientBundle ? (__bridge NSString *)pClientBundle(client) : nil;
+    return parent.length ? parent : bundle;
+}
+
+/// origin/client/player path. The player must be explicit ("MediaRemote-DefaultPlayer"):
+/// a nil player makes MediaRemote route commands to whichever app is active instead.
+typedef CFTypeRef (*MRPlayerCreateFn)(CFStringRef, CFStringRef);
+typedef CFTypeRef (*MRPathCreateFn)(id, id, id);
+static MRPlayerCreateFn pPlayerCreate;
+static MRPathCreateFn pPathCreate;
+static id gDefaultPlayer;
+
+static id playerPath(id client) {
+    if (!pGetOrigin || !pPlayerCreate || !pPathCreate) return nil;
+    if (!gDefaultPlayer) gDefaultPlayer = CFBridgingRelease(pPlayerCreate(CFSTR("MediaRemote-DefaultPlayer"), CFSTR("Default Player")));
+    return CFBridgingRelease(pPathCreate(pGetOrigin(), client, gDefaultPlayer));
+}
+
+/// Emits {"type":"clients","list":[{"id":…,"state":1|2|0}]} whenever the set of players or their states change.
+static void refreshClients(void) {
+    if (!pGetClients) return;
+    pGetClients(gQueue, ^(CFArrayRef cfList) {
+        NSArray *list = cfList ? [(__bridge NSArray *)cfList copy] : @[];
+        NSMutableDictionary *map = [NSMutableDictionary dictionary];
+        NSMutableArray *out = [NSMutableArray array];
+        dispatch_group_t group = dispatch_group_create();
+        for (id c in list) {
+            NSString *cid = clientID(c);
+            if (!cid || map[cid]) continue;
+            map[cid] = c;
+            NSMutableDictionary *entry = [@{@"id": cid, @"state": @0} mutableCopy];
+            [out addObject:entry];
+            id path = playerPath(c);
+            if (pStateForPlayer && path) {
+                dispatch_group_enter(group);
+                __block BOOL done = NO;
+                pStateForPlayer(path, gQueue, ^(unsigned int st) {
+                    if (done) return;
+                    done = YES;
+                    entry[@"state"] = @(st);
+                    dispatch_group_leave(group);
+                });
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 800 * NSEC_PER_MSEC), gQueue, ^{
+                    if (!done) { done = YES; dispatch_group_leave(group); }
+                });
+            }
+        }
+        dispatch_group_notify(group, gQueue, ^{
+            gClients = map;
+            NSData *json = [NSJSONSerialization dataWithJSONObject:out options:NSJSONWritingSortedKeys error:nil];
+            NSString *key = json ? [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding] : @"";
+            if ([key isEqualToString:gLastClients]) return;
+            gLastClients = key;
+            emit(@{@"type": @"clients", @"list": out});
+        });
+    });
+}
+
 static void handleCommand(NSString *line) {
     NSString *cmd = [line stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
     if (cmd.length == 0) return;
+    // Targeted: "<command> <app id>", e.g. "toggle com.google.Chrome".
     if ([cmd isEqualToString:@"play"]) pSend(0, NULL);
     else if ([cmd isEqualToString:@"pause"]) pSend(1, NULL);
     else if ([cmd isEqualToString:@"toggle"]) pSend(2, NULL);
@@ -170,6 +243,11 @@ void mn_stream(void) {
         pGetClient = (MRGetClientFn)sym(h, "MRMediaRemoteGetNowPlayingClient");
         pClientBundle = (MRClientStringFn)sym(h, "MRNowPlayingClientGetBundleIdentifier");
         pClientParentBundle = (MRClientStringFn)sym(h, "MRNowPlayingClientGetParentAppBundleIdentifier");
+        pGetClients = (MRGetClientsFn)sym(h, "MRMediaRemoteGetNowPlayingClients");
+        pGetOrigin = (MRGetOriginFn)sym(h, "MRMediaRemoteGetLocalOrigin");
+        pStateForPlayer = (MRStateForPlayerFn)sym(h, "MRMediaRemoteGetPlaybackStateForPlayer");
+        pPlayerCreate = (MRPlayerCreateFn)sym(h, "MRNowPlayingPlayerCreate");
+        pPathCreate = (MRPathCreateFn)sym(h, "MRNowPlayingPlayerPathCreate");
         if (!pGetInfo || !pGetIsPlaying || !pGetPID || !pRegister || !pSend) {
             emit(@{@"type": @"error", @"message": @"MediaRemote symbols missing"});
             exit(3);
@@ -185,14 +263,14 @@ void mn_stream(void) {
         ];
         for (NSString *n in names) {
             [[NSNotificationCenter defaultCenter] addObserverForName:n object:nil queue:nil usingBlock:^(NSNotification *note) {
-                dispatch_async(gQueue, ^{ scheduleRefresh(); });
+                dispatch_async(gQueue, ^{ scheduleRefresh(); refreshClients(); });
             }];
         }
 
         // Safety net: re-check every 3 seconds (cheap; only emits on change).
         gTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, gQueue);
         dispatch_source_set_timer(gTimer, dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), 3 * NSEC_PER_SEC, 500 * NSEC_PER_MSEC);
-        dispatch_source_set_event_handler(gTimer, ^{ refreshNow(); });
+        dispatch_source_set_event_handler(gTimer, ^{ refreshNow(); refreshClients(); });
         dispatch_resume(gTimer);
 
         // Commands from MyNotch.
@@ -217,6 +295,7 @@ void mn_stream(void) {
 
         emit(@{@"type": @"hello"});
         refreshNow();
+        refreshClients();
     }
     dispatch_main();
 }

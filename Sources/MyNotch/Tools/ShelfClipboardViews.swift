@@ -118,7 +118,7 @@ enum Paster {
         guard AXIsProcessTrustedWithOptions(opts) else {
             PeekCenter.shared.post(Peek(symbol: "doc.on.clipboard.fill", tint: .accentColor,
                                         title: "Copied \(count) item\(count == 1 ? "" : "s") — press ⌘V",
-                                        subtitle: "Allow MyNotch in Accessibility to paste automatically", duration: 4))
+                                        subtitle: "Allow MyNotch in Accessibility to paste automatically", duration: 4, short: "Copied"))
             return
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
@@ -235,7 +235,7 @@ struct ClipboardView: View {
             PillButton(title: "Preview", symbol: "eye") { PreviewCenter.shared.show(selectedItems.map(previewItem)) }
             PillButton(title: "Copy", symbol: "doc.on.doc") {
                 let c = clip.writeToPasteboard(selectedItems)
-                PeekCenter.shared.post(Peek(symbol: "doc.on.clipboard.fill", tint: .accentColor, title: "Copied \(c) item\(c == 1 ? "" : "s")", duration: 1.6))
+                PeekCenter.shared.post(Peek(symbol: "doc.on.clipboard.fill", tint: .accentColor, title: "Copied \(c) item\(c == 1 ? "" : "s")", duration: 1.6, short: "Copied"))
             }
             PillButton(title: "Paste \(n) into \(target)", symbol: "arrow.down.doc.fill", prominent: true) {
                 let items = selectedItems

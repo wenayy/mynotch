@@ -165,7 +165,7 @@ final class TimerEngine {
             countdowns.removeAll { $0.id == c.id }
             PeekCenter.shared.post(Peek(symbol: "bell.fill", tint: .orange, title: "\(c.label) is done",
                                         subtitle: Fmt.duration(c.duration) + " timer", tool: .timers, duration: 6,
-                                        style: .success, sound: NSSound.Name("Glass")))
+                                        style: .success, sound: NSSound.Name("Glass"), short: "Timer done"))
         }
         if let p = pomodoro, p.running, p.remaining <= 0 { finishPomodoroPhase() }
         ensureTicking()
@@ -255,7 +255,7 @@ final class TimerEngine {
                                         tint: finished == .focus ? .green : .orange,
                                         title: finished == .focus ? "Focus done — take a break" : "Break over — back to it",
                                         subtitle: "Round \(pomodoroRounds) · next: \(pomodoroPhase.rawValue) \(Fmt.duration(d))",
-                                        tool: .timers, duration: 6, style: .success, sound: NSSound.Name("Hero")))
+                                        tool: .timers, duration: 6, style: .success, sound: NSSound.Name("Hero"), short: finished == .focus ? "Break" : "Focus"))
         }
         ensureTicking()
     }
@@ -283,7 +283,7 @@ final class TimerEngine {
         guard s.hydrationReminder else { return }
         hydrationTimer = Timer.scheduledTimer(withTimeInterval: max(5, s.hydrationMinutes) * 60, repeats: true) { _ in
             PeekCenter.shared.post(Peek(symbol: "drop.fill", tint: .cyan, title: "Time for some water",
-                                        subtitle: "Stay hydrated 💧", duration: 5, sound: NSSound.Name("Purr")))
+                                        subtitle: "Stay hydrated 💧", duration: 5, sound: NSSound.Name("Purr"), short: "Water"))
         }
     }
 }

@@ -319,6 +319,7 @@ final class AppSettings {
     var liveTimer: Bool = AppSettings.get("liveTimer", true) { didSet { d.set(liveTimer, forKey: "liveTimer") } }
     var liveCharging: Bool = AppSettings.get("liveCharging", true) { didSet { d.set(liveCharging, forKey: "liveCharging") } }
     var alwaysShowUsage: Bool = AppSettings.get("alwaysShowUsage", false) { didSet { d.set(alwaysShowUsage, forKey: "alwaysShowUsage") } }
+    var exclusivePlayback: Bool = AppSettings.get("exclusivePlayback", true) { didSet { d.set(exclusivePlayback, forKey: "exclusivePlayback") } }
     var peekSongChanges: Bool = AppSettings.get("peekSongChanges", true) { didSet { d.set(peekSongChanges, forKey: "peekSongChanges") } }
     var hudMode: HUDMode = AppSettings.getEnum("hudMode", .off) { didSet { d.set(hudMode.rawValue, forKey: "hudMode"); HUDService.shared.apply(hudMode) } }
 

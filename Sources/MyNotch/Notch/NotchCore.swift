@@ -71,6 +71,13 @@ struct Peek: Identifiable, Equatable {
     var duration: TimeInterval = 3.6
     var style: Style = .standard
     var sound: NSSound.Name? = nil
+    /// 1–3 words shown in the compact island ("Done · 6m"). Full title/subtitle show on hover.
+    var short: String? = nil
+
+    var label: String {
+        let s = short ?? title
+        return s.count > 24 ? String(s.prefix(23)) + "…" : s
+    }
 
     static func == (a: Peek, b: Peek) -> Bool { a.id == b.id }
 }

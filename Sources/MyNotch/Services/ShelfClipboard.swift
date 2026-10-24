@@ -42,7 +42,7 @@ final class ShelfStore {
             save()
             PeekCenter.shared.post(Peek(symbol: "tray.and.arrow.down.fill", tint: .accentColor,
                                         title: added == 1 ? "Added to Shelf" : "\(added) items added to Shelf",
-                                        subtitle: urls.first?.lastPathComponent, tool: .shelf, duration: 2.2))
+                                        subtitle: urls.first?.lastPathComponent, tool: .shelf, duration: 2.2, short: added == 1 ? "Shelved" : "\(added) shelved"))
         }
     }
 

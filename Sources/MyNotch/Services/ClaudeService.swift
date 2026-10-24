@@ -184,14 +184,14 @@ final class ClaudeService {
             PeekCenter.shared.post(Peek(symbol: "gauge.with.dots.needle.67percent", tint: s.percent >= 95 ? .red : .orange,
                                         title: "Claude session at \(Fmt.percent(s.percent))",
                                         subtitle: "Resets \(Fmt.reset(s.resetsAt))", tool: .ai, duration: 5, style: .warning,
-                                        sound: NSSound.Name("Funk")))
+                                        sound: NSSound.Name("Funk"), short: Fmt.percent(s.percent)))
         }
         if let oldS = old?.session, let oldReset = oldS.resetsAt, oldS.percent > 20, s.percent < 5,
            s.resetsAt != oldReset, lastResetSeen != s.resetsAt {
             lastResetSeen = s.resetsAt
             PeekCenter.shared.post(Peek(symbol: "arrow.counterclockwise.circle.fill", tint: .claude,
                                         title: "Claude session reset", subtitle: "Fresh 5-hour window — go build",
-                                        tool: .ai, duration: 4, style: .success))
+                                        tool: .ai, duration: 4, style: .success, short: "Reset"))
         }
     }
 
@@ -247,14 +247,14 @@ final class ClaudeService {
                                                     title: "Claude finished · \(s.name)",
                                                     subtitle: took > 0 ? "Worked for \(Fmt.duration(took))" : nil,
                                                     tool: .ai, duration: 4.5, style: .success,
-                                                    sound: NSSound.Name("Glass")))
+                                                    sound: NSSound.Name("Glass"), short: took > 0 ? "Done · \(Fmt.duration(took, short: true))" : "Done"))
                     }
                 }
                 if s.status == .waiting && settings.notifyAgentWaiting {
                     PeekCenter.shared.post(Peek(symbol: "hand.raised.fill", tint: .yellow,
                                                 title: "Claude needs you · \(s.name)",
                                                 subtitle: (s.waitingFor ?? "waiting").capitalized, tool: .ai,
-                                                duration: 6, style: .warning, sound: NSSound.Name("Tink")))
+                                                duration: 6, style: .warning, sound: NSSound.Name("Tink"), short: "Needs you"))
                 }
             }
             previous[s.id] = s.status

@@ -205,6 +205,7 @@ private struct LiveSettings: View {
             }
             Section("Banners") {
                 Toggle("Show a banner when the song changes", isOn: $s.peekSongChanges)
+                Toggle("One player at a time (starting one pauses the others)", isOn: $s.exclusivePlayback)
             }
             Section("Volume & brightness") {
                 Picker("Notch HUD", selection: $s.hudMode) { ForEach(HUDMode.allCases) { Text($0.title).tag($0) } }

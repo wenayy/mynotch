@@ -93,9 +93,16 @@ final class NotchViewModel {
         return PeekCenter.shared.current
     }
 
+    /// Dynamic-Island style: the notch just grows sideways (icon left, short label right).
+    /// Hovering it expands downward with the full title and detail.
     var peekSize: CGSize {
-        let w = min(max(closedSize.width + 220, 460), openSize.width - 140)
-        return CGSize(width: w, height: notchSize.height + 30)
+        guard let peek = PeekCenter.shared.current else { return closedSize }
+        if hovering {
+            return CGSize(width: min(max(notchSize.width + 200, 420), openSize.width - 140), height: notchSize.height + 40)
+        }
+        let label = (peek.label as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 12.5, weight: .semibold)]).width
+        let wing = max(46, label + 22)
+        return CGSize(width: notchSize.width + wing * 2, height: notchSize.height)
     }
 
     var shapeSize: CGSize {
@@ -105,7 +112,7 @@ final class NotchViewModel {
     }
 
     var topRadius: CGFloat { isOpen ? 12 : 6 }
-    var bottomRadius: CGFloat { isOpen ? 26 : (peek != nil ? 14 : (activity == .none ? 10 : 12)) }
+    var bottomRadius: CGFloat { isOpen ? 26 : (peek != nil ? (hovering ? 18 : 12) : (activity == .none ? 10 : 12)) }
 
     // MARK: Screen-space hit testing
 
@@ -200,7 +207,7 @@ final class NotchViewModel {
         if inClosed != hovering {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { hovering = inClosed }
         }
-        if inClosed && settings.openTrigger == .hover {
+        if inClosed && settings.openTrigger == .hover && peek == nil {   // hovering an alert expands it instead
             scheduleOpen()
         } else if !inClosed {
             cancelOpen()

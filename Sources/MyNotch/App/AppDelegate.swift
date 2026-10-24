@@ -157,7 +157,7 @@ enum URLRouter {
             PeekCenter.shared.post(Peek(symbol: symbol, tint: tint, title: "\(title) \(word)",
                                         subtitle: q("subtitle") ?? secs.map { "Took \(Fmt.duration($0))" } ?? q("source"),
                                         duration: 5, style: state == "failed" ? .error : .success,
-                                        sound: NSSound.Name(state == "failed" ? "Basso" : "Glass")))
+                                        sound: NSSound.Name(state == "failed" ? "Basso" : "Glass"), short: "\(title) \(word)"))
         case "convert":
             // mynotch://convert?file=/a.png&file=/b.heic&to=pdf&run=1
             let files = items.filter { $0.name == "file" }.compactMap { $0.value }.map { URL(fileURLWithPath: $0) }

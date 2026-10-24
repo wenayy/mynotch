@@ -44,7 +44,7 @@ private struct NotchBody: View {
         .contentShape(shape)
         .opacity(vm.hidden ? 0 : 1)
         .animation(.spring(response: 0.38, dampingFraction: 0.8), value: vm.activity)
-        .animation(.spring(response: 0.5, dampingFraction: 0.68), value: vm.peek?.id)
+        .animation(.spring(response: 0.45, dampingFraction: 0.72), value: vm.peek?.id)
         .animation(.spring(response: 0.3, dampingFraction: 0.75), value: vm.hovering)
     }
 
@@ -55,7 +55,7 @@ private struct NotchBody: View {
                     insertion: .opacity.combined(with: .scale(scale: 0.94, anchor: .top)).animation(.spring(response: 0.4, dampingFraction: 0.82).delay(0.04)),
                     removal: .opacity.animation(.easeOut(duration: 0.1))))
         } else if let peek = vm.peek {
-            PeekView(peek: peek, notchHeight: vm.notchSize.height)
+            PeekView(peek: peek, notchHeight: vm.notchSize.height, expanded: vm.hovering)
                 .transition(.asymmetric(
                     insertion: .opacity.combined(with: .offset(y: -8)).animation(.easeOut(duration: 0.25).delay(0.14)),
                     removal: .opacity.animation(.easeIn(duration: 0.1))))
@@ -251,35 +251,49 @@ struct TickerView: View {
 struct PeekView: View {
     var peek: Peek
     var notchHeight: CGFloat
+    var expanded: Bool
+
     var body: some View {
         VStack(spacing: 0) {
-            Color.clear.frame(height: notchHeight)
-            HStack(spacing: 10) {
-                Group {
-                    if let img = peek.image {
-                        Image(nsImage: img).resizable().aspectRatio(contentMode: .fill)
-                    } else {
-                        Image(systemName: peek.symbol).font(.system(size: 11, weight: .bold)).foregroundStyle(peek.tint)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background(peek.tint.opacity(0.18))
-                    }
-                }
-                .frame(width: 22, height: 22)
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                .symbolEffect(.bounce, value: peek.id)
-                VStack(alignment: .leading, spacing: 0) {
+            // Compact island row: icon | (camera notch) | label
+            HStack(spacing: 0) {
+                icon.frame(width: 20, height: 20).padding(.leading, 13)
+                Spacer(minLength: 0)
+                Text(peek.label)
+                    .font(.system(size: 12.5, weight: .semibold, design: .rounded))
+                    .foregroundStyle(peek.style == .standard ? .white : peek.tint)
+                    .lineLimit(1)
+                    .padding(.trailing, 14)
+                    .contentTransition(.opacity)
+            }
+            .frame(height: notchHeight)
+            if expanded {
+                VStack(alignment: .leading, spacing: 1) {
                     Text(peek.title).font(.system(size: 11.5, weight: .semibold)).lineLimit(1)
                     if let s = peek.subtitle {
-                        Text(s).font(.system(size: 9.5)).foregroundStyle(Theme.secondary).lineLimit(1)
+                        Text(s).font(.system(size: 10)).foregroundStyle(Theme.secondary).lineLimit(1)
                     }
                 }
-                Spacer(minLength: 0)
-                Capsule().fill(peek.tint).frame(width: 4, height: 16).opacity(0.9)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .frame(maxHeight: .infinity)
+                .transition(.opacity)
             }
-            .padding(.horizontal, 16)
-            .frame(maxHeight: .infinity)
         }
         .contentShape(Rectangle())
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: expanded)
+    }
+
+    @ViewBuilder private var icon: some View {
+        if let img = peek.image {
+            Image(nsImage: img).resizable().aspectRatio(contentMode: .fill)
+                .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+        } else {
+            Image(systemName: peek.symbol)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(peek.tint)
+                .symbolEffect(.bounce, value: peek.id)
+        }
     }
 }
 

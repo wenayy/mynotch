@@ -248,7 +248,7 @@ final class ConverterStore {
                     PeekCenter.shared.post(Peek(symbol: "checkmark.circle.fill", tint: .green,
                                                 title: "Converted \(r.outputs.count) file\(r.outputs.count == 1 ? "" : "s")",
                                                 subtitle: r.outputs.first?.lastPathComponent, tool: .convert, duration: 3,
-                                                style: .success, sound: NSSound.Name("Pop")))
+                                                style: .success, sound: NSSound.Name("Pop"), short: "Converted"))
                 }
             }
         }

@@ -223,7 +223,7 @@ final class CodexService {
                 for gone in self.wasActive.subtracting(ids) where self.settings.notifyAgentFinished {
                     let name = self.active.first { $0.id == gone }?.name ?? "Codex"
                     PeekCenter.shared.post(Peek(symbol: "checkmark.circle.fill", tint: .codex, title: "Codex went quiet · \(name)",
-                                                subtitle: "No new activity for a bit", tool: .ai, duration: 3.5, style: .success))
+                                                subtitle: "No new activity for a bit", tool: .ai, duration: 3.5, style: .success, short: "Codex done"))
                 }
                 self.wasActive = ids
                 if sessions != self.active { withAnimation { self.active = sessions } }

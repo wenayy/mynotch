@@ -258,28 +258,41 @@ struct ProgressLine: View {
 
 struct MediaView: View {
     private var np: NowPlayingService { .shared }
+    /// Other apps with a media session (the active one is shown big).
+    private var others: [MediaPlayer] { np.players.filter { $0.id != np.bundleID } }
+
     var body: some View {
         if np.hasMedia {
-            HStack(spacing: 18) {
-                Artwork(size: 150)
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 6) {
-                        if let icon = np.appIcon { Image(nsImage: icon).resizable().frame(width: 14, height: 14) }
-                        Text(np.appName ?? "Now Playing").font(.system(size: 10.5, weight: .semibold)).foregroundStyle(Theme.secondary)
-                        Spacer()
-                        AudioBars(color: np.artworkColor, playing: np.isPlaying, bars: 5)
+            VStack(spacing: 10) {
+                HStack(spacing: 18) {
+                    Artwork(size: others.isEmpty ? 150 : 108)
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 6) {
+                            if let icon = np.appIcon { Image(nsImage: icon).resizable().frame(width: 14, height: 14) }
+                            Text(np.appName ?? "Now Playing").font(.system(size: 10.5, weight: .semibold)).foregroundStyle(Theme.secondary)
+                            Spacer()
+                            AudioBars(color: np.artworkColor, playing: np.isPlaying, bars: 5)
+                        }
+                        Spacer(minLength: 0)
+                        Text(np.title).font(.system(size: others.isEmpty ? 19 : 16, weight: .bold)).lineLimit(others.isEmpty ? 2 : 1)
+                        Text([np.artist, np.album].filter { !$0.isEmpty }.joined(separator: " — "))
+                            .font(.system(size: 12)).foregroundStyle(Theme.secondary).lineLimit(1)
+                        Spacer(minLength: 0)
+                        ProgressLine(compact: !others.isEmpty)
+                        HStack {
+                            Spacer()
+                            Controls(size: others.isEmpty ? 20 : 16)
+                            Spacer()
+                        }
                     }
-                    Spacer(minLength: 0)
-                    Text(np.title).font(.system(size: 19, weight: .bold)).lineLimit(2)
-                    Text([np.artist, np.album].filter { !$0.isEmpty }.joined(separator: " — "))
-                        .font(.system(size: 12.5)).foregroundStyle(Theme.secondary).lineLimit(1)
-                    Spacer(minLength: 0)
-                    ProgressLine()
-                    HStack {
-                        Spacer()
-                        Controls(size: 20)
-                        Spacer()
+                }
+                if !others.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(others) { OtherPlayerChip(player: $0) }
+                        }
                     }
+                    .frame(height: 44)
                 }
             }
             .background(
@@ -294,6 +307,60 @@ struct MediaView: View {
                     NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration(), completionHandler: nil)
                 }
             }
+        }
+    }
+}
+
+/// Compact controls for another app that's also playing (or paused) — e.g. Chrome while Safari is active.
+private struct OtherPlayerChip: View {
+    var player: MediaPlayer
+    @State private var hover = false
+    private var np: NowPlayingService { .shared }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ZStack(alignment: .bottomTrailing) {
+                Group {
+                    if let art = player.artwork { Image(nsImage: art).resizable().aspectRatio(contentMode: .fill) }
+                    else { Color.white.opacity(0.08) }
+                }
+                .frame(width: 32, height: 32).clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                if let icon = AppInfo.icon(forBundleID: player.id) {
+                    Image(nsImage: icon).resizable().frame(width: 14, height: 14).offset(x: 3, y: 3)
+                }
+            }
+            VStack(alignment: .leading, spacing: 0) {
+                Text(player.title ?? player.name).font(.system(size: 11, weight: .semibold)).lineLimit(1)
+                if np.needsSetup.contains(player.id) {
+                    Button { np.showSetup(for: player) } label: {
+                        Label("Enable control", systemImage: "exclamationmark.circle.fill")
+                            .font(.system(size: 9.5, weight: .semibold)).foregroundStyle(.orange)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Text(player.title == nil ? (player.playing ? "Playing" : "Paused") : "\(player.name) · \(player.playing ? "playing" : "paused")")
+                        .font(.system(size: 9.5)).foregroundStyle(Theme.secondary).lineLimit(1)
+                }
+            }
+            .frame(maxWidth: 170, alignment: .leading)
+            Button { np.previous(player) } label: { Image(systemName: "backward.fill").font(.system(size: 10, weight: .bold)) }
+                .buttonStyle(PressStyle())
+            Button { np.toggle(player) } label: {
+                Image(systemName: player.playing ? "pause.fill" : "play.fill").font(.system(size: 13, weight: .bold))
+                    .frame(width: 22).contentTransition(.symbolEffect(.replace))
+            }
+            .buttonStyle(PressStyle())
+            Button { np.next(player) } label: { Image(systemName: "forward.fill").font(.system(size: 10, weight: .bold)) }
+                .buttonStyle(PressStyle())
+        }
+        .padding(.horizontal, 8).padding(.vertical, 5)
+        .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Color.white.opacity(hover ? 0.1 : 0.06)))
+        .onHover { hover = $0 }
+        .contextMenu {
+            Button("Show \(player.name)") {
+                if let app = NSRunningApplication.runningApplications(withBundleIdentifier: player.id).first { app.activate() }
+            }
+            Button("Pause everything else") { np.pauseOthers(than: player) }
         }
     }
 }
