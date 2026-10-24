@@ -9,13 +9,13 @@ enum LiveActivity: Equatable {
     var wing: CGFloat {
         switch self {
         case .none: 0
-        case .media: 36
-        case .agent: 54
-        case .timer: 58
-        case .charging: 52
-        case .hud: 84
+        case .media: 20
+        case .agent: 36
+        case .timer: 48
+        case .charging: 38
+        case .hud: 60
         case .ticker: 130
-        case .usage: 46
+        case .usage: 34
         }
     }
 }

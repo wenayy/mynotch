@@ -105,9 +105,9 @@ struct ClosedNotchView: View {
                 TickerView(text: AppSettings.shared.tickerText).frame(height: h)
             } else {
                 HStack(spacing: 0) {
-                    LeftWing(activity: a).frame(width: a.wing, height: h).padding(.leading, 5)
+                    LeftWing(activity: a).frame(width: a.wing, height: h).padding(.leading, 3)
                     Spacer(minLength: 0)
-                    RightWing(activity: a).frame(width: a.wing, height: h).padding(.trailing, 5)
+                    RightWing(activity: a).frame(width: a.wing, height: h).padding(.trailing, 3)
                 }
             }
         }
@@ -131,8 +131,8 @@ private struct LeftWing: View {
                     Image(systemName: "music.note").foregroundStyle(np.artworkColor)
                 }
             }
-            .frame(width: 20, height: 20)
-            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+            .frame(width: 14, height: 14)
+            .clipShape(RoundedRectangle(cornerRadius: 3.5, style: .continuous))
             .onTapGesture { NowPlayingService.shared.togglePlayPause() }
         case .agent:
             switch AIUsageCenter.shared.agentActivity {
@@ -180,7 +180,8 @@ private struct RightWing: View {
     var body: some View {
         switch activity {
         case .media:
-            AudioBars(color: NowPlayingService.shared.artworkColor, playing: NowPlayingService.shared.isPlaying)
+            AudioBars(color: NowPlayingService.shared.artworkColor, playing: NowPlayingService.shared.isPlaying, bars: 3)
+                .scaleEffect(0.8)
         case .agent:
             let center = AIUsageCenter.shared
             switch center.agentActivity {
@@ -211,7 +212,7 @@ private struct RightWing: View {
             Text("\(SystemStats.shared.batteryPercent ?? 0)%").font(.rounded(11, .bold)).foregroundStyle(.green)
         case .hud:
             let e = HUDService.shared.current
-            LinearMeter(value: e?.muted == true ? 0 : (e?.level ?? 0), color: .white, height: 4).frame(width: 58)
+            LinearMeter(value: e?.muted == true ? 0 : (e?.level ?? 0), color: .white, height: 3.5).frame(width: 44)
         case .usage:
             Text(Fmt.percent(AIUsageCenter.shared.claude.limits?.session?.percent ?? 0))
                 .font(.rounded(11, .bold)).foregroundStyle(Color.claude)
