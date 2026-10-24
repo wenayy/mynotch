@@ -30,6 +30,8 @@ final class NotchViewModel {
     var pinned = false
     var dropTargeted = false
     var fileDragging = false
+    /// Which drop zone (0 Shelf, 1 Convert, 2 AirDrop) the pointer is over while dragging files.
+    var dragZone: Int?
     var hidden = false
     /// Keeps the notch open while typing (quick jot) even if the pointer wanders off.
     var holdOpen = false
@@ -150,6 +152,8 @@ final class NotchViewModel {
         case .dragged:
             if isDragging && !dragStartedInside {
                 if !fileDragging && (isOpen || dragCaptureRect.contains(p)) { fileDragging = true }
+                let zone: Int? = (isOpen && openRect.contains(p)) ? min(2, max(0, Int((p.x - openRect.minX) / (openRect.width / 3)))) : nil
+                if zone != dragZone { withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) { dragZone = zone } }
                 if !isOpen && dragCaptureRect.contains(p) {
                     openedByDrag = true
                     open(animated: true)
@@ -174,7 +178,7 @@ final class NotchViewModel {
             }
         case .up:
             if fileDragging {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.fileDragging = false }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.fileDragging = false; self?.dragZone = nil }
             }
             if openedByDrag {
                 openedByDrag = false

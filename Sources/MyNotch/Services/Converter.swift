@@ -208,15 +208,43 @@ final class ConverterStore {
         return PDFDocument(data: data)
     }
 
+    /// Accepts anything dragged in: file paths, file promises (screenshot thumbnails, Photos…),
+    /// raw image data (browser images) — saved to an inbox folder so they can be converted.
     func accept(_ providers: [NSItemProvider]) -> Bool {
+        let inbox = Paths.dir("ConvertInbox")
         var handled = false
-        for p in providers where p.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
-            handled = true
-            _ = p.loadObject(ofClass: URL.self) { url, _ in
-                if let url { DispatchQueue.main.async { self.add([url]) } }
+        func add(_ url: URL?) { if let url { DispatchQueue.main.async { self.addDropped(url) } } }
+        for p in providers {
+            if p.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+                handled = true
+                _ = p.loadObject(ofClass: URL.self) { url, _ in add(url) }
+            } else if let type = p.registeredTypeIdentifiers.first(where: { UTType($0)?.conforms(to: .data) == true }) {
+                handled = true
+                // File promise / data: copy it into the inbox with a sensible name.
+                p.loadFileRepresentation(forTypeIdentifier: type) { tmp, _ in
+                    guard let tmp else { return }
+                    let ext = tmp.pathExtension.isEmpty ? (UTType(type)?.preferredFilenameExtension ?? "png") : tmp.pathExtension
+                    let base = p.suggestedName ?? tmp.deletingPathExtension().lastPathComponent
+                    var dest = inbox.appendingPathComponent(base).appendingPathExtension(ext)
+                    var n = 2
+                    while FileManager.default.fileExists(atPath: dest.path) {
+                        dest = inbox.appendingPathComponent("\(base) \(n)").appendingPathExtension(ext); n += 1
+                    }
+                    try? FileManager.default.copyItem(at: tmp, to: dest)
+                    add(FileManager.default.fileExists(atPath: dest.path) ? dest : nil)
+                }
             }
         }
         return handled
+    }
+
+    private func addDropped(_ url: URL) {
+        if Self.isSupported(url) {
+            add([url])
+        } else {
+            PeekCenter.shared.post(Peek(symbol: "questionmark.square.dashed", tint: .orange, title: "Can't convert \(url.lastPathComponent)",
+                                        subtitle: "Try an image, PDF or document", tool: .convert, short: "Unsupported"))
+        }
     }
 
     func choose() {

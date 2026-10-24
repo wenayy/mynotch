@@ -439,43 +439,52 @@ private struct ToolContainer: View {
 
 private struct DropZones: View {
     let vm: NotchViewModel
-    @State private var shelfTargeted = false
-    @State private var airdropTargeted = false
-    @State private var convertTargeted = false
+    @State private var width: CGFloat = 1
+    @State private var hoverZone: Int?
+
+    private var active: Int? { hoverZone ?? vm.dragZone }
 
     var body: some View {
         HStack(spacing: 12) {
-            zone(title: "Shelf", subtitle: "Keep it here for later", symbol: "tray.and.arrow.down.fill", targeted: $shelfTargeted) { providers in
-                vm.select(.shelf)
-                return ShelfStore.shared.accept(providers)
-            }
-            zone(title: "Convert", subtitle: "JPG · PNG · PDF and more", symbol: "arrow.triangle.2.circlepath.doc.on.clipboard", targeted: $convertTargeted) { providers in
-                vm.select(.convert)
-                return ConverterStore.shared.accept(providers)
-            }
-            zone(title: "AirDrop", subtitle: "Send to a nearby device", symbol: "airplayaudio", targeted: $airdropTargeted) { providers in
-                var urls: [URL] = []
-                let group = DispatchGroup()
-                for p in providers where p.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
-                    group.enter()
-                    _ = p.loadObject(ofClass: URL.self) { url, _ in
-                        if let url { DispatchQueue.main.async { urls.append(url) } }
-                        group.leave()
-                    }
-                }
-                group.notify(queue: .main) { if !urls.isEmpty { ShelfStore.shared.airDrop(urls) } }
-                return true
-            }
+            zone(index: 0, title: "Shelf", subtitle: "Keep it here for later", symbol: "tray.and.arrow.down.fill")
+            zone(index: 1, title: "Convert", subtitle: "JPG · PNG · PDF and more", symbol: "arrow.triangle.2.circlepath.doc.on.clipboard")
+            zone(index: 2, title: "AirDrop", subtitle: "Send to a nearby device", symbol: "airplayaudio")
         }
         .padding(.horizontal, 20)
         .padding(.top, vm.headerHeight + 6)
         .padding(.bottom, 14)
-        .background(Color.black.opacity(0.88))
+        .background(GeometryReader { g in Color.black.opacity(0.88).onAppear { width = g.size.width } })
+        // One drop target for the whole area: the drop goes to whichever third the pointer is over.
+        .onDrop(of: [.fileURL, .url, .image, .plainText, .text], delegate: ZoneDrop(width: { width }, zone: $hoverZone) { index, providers in
+            deliver(index, providers)
+        })
     }
 
-    private func zone(title: String, subtitle: String, symbol: String, targeted: Binding<Bool>,
-                      perform: @escaping ([NSItemProvider]) -> Bool) -> some View {
-        let on = targeted.wrappedValue
+    private func deliver(_ index: Int, _ providers: [NSItemProvider]) -> Bool {
+        switch index {
+        case 0:
+            vm.select(.shelf)
+            return ShelfStore.shared.accept(providers)
+        case 1:
+            vm.select(.convert)
+            return ConverterStore.shared.accept(providers)
+        default:
+            var urls: [URL] = []
+            let group = DispatchGroup()
+            for p in providers where p.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+                group.enter()
+                _ = p.loadObject(ofClass: URL.self) { url, _ in
+                    if let url { DispatchQueue.main.async { urls.append(url) } }
+                    group.leave()
+                }
+            }
+            group.notify(queue: .main) { if !urls.isEmpty { ShelfStore.shared.airDrop(urls) } }
+            return true
+        }
+    }
+
+    private func zone(index: Int, title: String, subtitle: String, symbol: String) -> some View {
+        let on = active == index
         return VStack(spacing: 8) {
             Image(systemName: symbol).font(.system(size: 26, weight: .semibold))
                 .foregroundStyle(on ? Theme.accent : .white.opacity(0.8))
@@ -489,7 +498,27 @@ private struct DropZones: View {
             .strokeBorder(on ? Theme.accent : Color.white.opacity(0.18), style: StrokeStyle(lineWidth: 1.5, dash: [6, 5])))
         .scaleEffect(on ? 1.02 : 1)
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: on)
-        .onDrop(of: [.fileURL, .url, .image, .plainText, .text], isTargeted: targeted, perform: perform)
+    }
+}
+
+private struct ZoneDrop: DropDelegate {
+    var width: () -> CGFloat
+    @Binding var zone: Int?
+    var perform: (Int, [NSItemProvider]) -> Bool
+
+    private func index(_ info: DropInfo) -> Int { min(2, max(0, Int(info.location.x / max(1, width() / 3)))) }
+
+    func dropEntered(info: DropInfo) { zone = index(info) }
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        let i = index(info)
+        if zone != i { withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) { zone = i } }
+        return DropProposal(operation: .copy)
+    }
+    func dropExited(info: DropInfo) { zone = nil }
+    func performDrop(info: DropInfo) -> Bool {
+        let i = index(info)
+        zone = nil
+        return perform(i, info.itemProviders(for: [.fileURL, .url, .image, .plainText, .text]))
     }
 }
 

@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 struct ConvertView: View {
     private var c: ConverterStore { .shared }
     @State private var targeted = false
+    @State private var emptyHover = false
 
     var body: some View {
         HStack(spacing: 10) {
@@ -19,10 +20,12 @@ struct ConvertView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 SectionLabel(text: c.inputs.isEmpty ? "Files" : "\(c.inputs.count) file\(c.inputs.count == 1 ? "" : "s")")
-                if !ShelfStore.shared.items.isEmpty {
-                    PillButton(title: "From Shelf", symbol: "tray.full") { c.add(ShelfStore.shared.items.map(\.url)) }
-                }
-                PillButton(title: "Choose…", symbol: "plus") { c.choose() }
+                let shelfEmpty = ShelfStore.shared.items.isEmpty
+                PillButton(title: "From Shelf", symbol: "tray.full") { c.add(ShelfStore.shared.items.map(\.url)) }
+                    .disabled(shelfEmpty)
+                    .opacity(shelfEmpty ? 0.4 : 1)
+                    .help(shelfEmpty ? "Your Shelf is empty" : "Add everything on your Shelf")
+                if !c.inputs.isEmpty { IconButton(symbol: "plus", size: 11, help: "Add more files") { c.choose() } }
                 if !c.inputs.isEmpty { IconButton(symbol: "trash", size: 10, help: "Clear") { c.clear() } }
             }
             Group {
@@ -32,10 +35,14 @@ struct ConvertView: View {
                     VStack(spacing: 7) {
                         Image(systemName: "arrow.triangle.2.circlepath.doc.on.clipboard").font(.system(size: 24)).foregroundStyle(Theme.tertiary)
                             .symbolEffect(.bounce, value: targeted)
-                        Text("Drop any image, PDF or document here").font(.system(size: 12.5, weight: .semibold))
+                        Text("Drop files here, or click to choose").font(.system(size: 12.5, weight: .semibold))
                         Text("Images (WebP, HEIC, PNG, JPG…) · PDF · DOCX · CSV · TXT · MD · RTF · HTML").font(.system(size: 10)).foregroundStyle(Theme.secondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white.opacity(emptyHover ? 0.05 : 0)))
+                    .contentShape(Rectangle())
+                    .onHover { emptyHover = $0; if $0 { NSCursor.pointingHand.push() } else { NSCursor.pop() } }
+                    .onTapGesture { c.choose() }
                 } else {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
