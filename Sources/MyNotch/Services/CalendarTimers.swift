@@ -131,8 +131,9 @@ final class TimerEngine {
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private var hydrationTimer: Timer?
 
-    var stopwatchElapsed: TimeInterval {
-        stopwatchAccumulated + (stopwatchStart.map { tick.timeIntervalSince($0) } ?? 0)
+    var stopwatchElapsed: TimeInterval { stopwatchElapsed(at: Date()) }
+    func stopwatchElapsed(at now: Date) -> TimeInterval {
+        stopwatchAccumulated + (stopwatchStart.map { now.timeIntervalSince($0) } ?? 0)
     }
     var stopwatchRunning: Bool { stopwatchStart != nil }
 

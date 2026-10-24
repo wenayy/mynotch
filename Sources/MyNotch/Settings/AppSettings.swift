@@ -313,6 +313,8 @@ final class AppSettings {
 
     // Live activities (closed notch)
     var liveMedia: Bool = AppSettings.get("liveMedia", true) { didSet { d.set(liveMedia, forKey: "liveMedia") } }
+    /// Show "working" in the closed notch too. Off by default: only "needs you" shows, plus finish banners.
+    var liveAIWorking: Bool = AppSettings.get("liveAIWorking", false) { didSet { d.set(liveAIWorking, forKey: "liveAIWorking") } }
     var liveAI: Bool = AppSettings.get("liveAI", true) { didSet { d.set(liveAI, forKey: "liveAI") } }
     var liveTimer: Bool = AppSettings.get("liveTimer", true) { didSet { d.set(liveTimer, forKey: "liveTimer") } }
     var liveCharging: Bool = AppSettings.get("liveCharging", true) { didSet { d.set(liveCharging, forKey: "liveCharging") } }

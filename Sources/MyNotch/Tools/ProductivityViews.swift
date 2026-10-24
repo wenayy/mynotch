@@ -195,10 +195,10 @@ struct TimersView: View {
 
     private var stopwatch: some View {
         Card(padding: 11) {
-            TimelineView(.periodic(from: .now, by: 0.1)) { _ in
+            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !t.stopwatchRunning)) { ctx in
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Stopwatch").font(.system(size: 11.5, weight: .bold))
-                    Text(stopwatchText(t.stopwatchElapsed)).font(.rounded(24, .bold)).monospacedDigit()
+                    Text(stopwatchText(t.stopwatchElapsed(at: ctx.date))).font(.rounded(24, .bold)).monospacedDigit()
                     HStack(spacing: 6) {
                         IconButton(symbol: t.stopwatchRunning ? "pause.fill" : "play.fill", size: 11, active: true, tint: .cyan) { t.toggleStopwatch() }
                         IconButton(symbol: "flag.fill", size: 10, help: "Lap") { t.lap() }
@@ -223,7 +223,9 @@ struct TimersView: View {
 
     private func stopwatchText(_ s: TimeInterval) -> String {
         let cs = Int((s * 100).rounded(.down))
-        return String(format: "%02d:%02d.%02d", cs / 6000, (cs / 100) % 60, cs % 100)
+        let h = cs / 360000, m = (cs / 6000) % 60, sec = (cs / 100) % 60
+        return h > 0 ? String(format: "%d:%02d:%02d.%02d", h, m, sec, cs % 100)
+                     : String(format: "%02d:%02d.%02d", m, sec, cs % 100)
     }
 }
 

@@ -196,7 +196,8 @@ private struct LiveSettings: View {
         Form {
             Section("Closed notch shows…") {
                 Toggle("Music that's playing (artwork + equalizer)", isOn: $s.liveMedia)
-                Toggle("Claude / Codex working or waiting for you", isOn: $s.liveAI)
+                Toggle("Claude / Codex needs you", isOn: $s.liveAI)
+                Toggle("Also show while agents are working", isOn: $s.liveAIWorking)
                 Toggle("Running timers & Pomodoro", isOn: $s.liveTimer)
                 Toggle("Charging animation when you plug in", isOn: $s.liveCharging)
                 Toggle("Warn when CPU or memory stays high", isOn: $s.resourceAlerts)

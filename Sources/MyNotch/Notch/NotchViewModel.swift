@@ -68,7 +68,7 @@ final class NotchViewModel {
         if HUDService.shared.current != nil { return .hud }
         if settings.liveCharging, SystemStats.shared.chargingBanner { return .charging }
         if settings.liveTimer, TimerEngine.shared.primary != nil { return .timer }
-        if settings.liveAI, AIUsageCenter.shared.agentActivity != nil { return .agent }
+        if settings.liveAI, let a = AIUsageCenter.shared.agentActivity, a.isWaiting || settings.liveAIWorking { return .agent }
         if settings.liveMedia, NowPlayingService.shared.isPlaying { return .media }
         if settings.tickerEnabled, !settings.tickerText.isEmpty { return .ticker }
         if settings.alwaysShowUsage, AIUsageCenter.shared.claude.limits?.session != nil { return .usage }
@@ -94,8 +94,8 @@ final class NotchViewModel {
     }
 
     var peekSize: CGSize {
-        let w = min(max(closedSize.width + 30, 360), openSize.width - 160)
-        return CGSize(width: w, height: notchSize.height + 24)
+        let w = min(max(closedSize.width + 220, 460), openSize.width - 140)
+        return CGSize(width: w, height: notchSize.height + 30)
     }
 
     var shapeSize: CGSize {

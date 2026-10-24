@@ -236,18 +236,13 @@ struct AudioBars: View {
 /// Claude's spark, slowly turning while work is happening.
 struct SparkIcon: View {
     var color: Color = .claude
-    var animating: Bool
+    var animating: Bool          // kept for call sites; the spark never spins (motion was distracting)
     var size: CGFloat = 14
-    @State private var spin = false
 
     var body: some View {
         Image(systemName: "asterisk")
             .font(.system(size: size, weight: .heavy))
-            .foregroundStyle(color)
-            .rotationEffect(.degrees(spin ? 360 : 0))
-            .animation(spin ? .linear(duration: 2.6).repeatForever(autoreverses: false) : .easeOut(duration: 0.3), value: spin)
-            .onAppear { spin = animating }
-            .onChange(of: animating) { _, v in spin = v }
+            .foregroundStyle(color.opacity(animating ? 1 : 0.85))
     }
 }
 

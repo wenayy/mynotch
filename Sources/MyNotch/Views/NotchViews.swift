@@ -44,7 +44,7 @@ private struct NotchBody: View {
         .contentShape(shape)
         .opacity(vm.hidden ? 0 : 1)
         .animation(.spring(response: 0.38, dampingFraction: 0.8), value: vm.activity)
-        .animation(.spring(response: 0.38, dampingFraction: 0.78), value: vm.peek?.id)
+        .animation(.spring(response: 0.5, dampingFraction: 0.68), value: vm.peek?.id)
         .animation(.spring(response: 0.3, dampingFraction: 0.75), value: vm.hovering)
     }
 
@@ -56,7 +56,9 @@ private struct NotchBody: View {
                     removal: .opacity.animation(.easeOut(duration: 0.1))))
         } else if let peek = vm.peek {
             PeekView(peek: peek, notchHeight: vm.notchSize.height)
-                .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .top)))
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .offset(y: -8)).animation(.easeOut(duration: 0.25).delay(0.14)),
+                    removal: .opacity.animation(.easeIn(duration: 0.1))))
         } else {
             ClosedNotchView(vm: vm).transition(.opacity)
         }
@@ -252,21 +254,29 @@ struct PeekView: View {
     var body: some View {
         VStack(spacing: 0) {
             Color.clear.frame(height: notchHeight)
-            HStack(spacing: 7) {
-                if let img = peek.image {
-                    Image(nsImage: img).resizable().aspectRatio(contentMode: .fill)
-                        .frame(width: 15, height: 15).clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-                } else {
-                    Image(systemName: peek.symbol).font(.system(size: 10.5, weight: .bold)).foregroundStyle(peek.tint)
-                        .frame(width: 15)
+            HStack(spacing: 10) {
+                Group {
+                    if let img = peek.image {
+                        Image(nsImage: img).resizable().aspectRatio(contentMode: .fill)
+                    } else {
+                        Image(systemName: peek.symbol).font(.system(size: 11, weight: .bold)).foregroundStyle(peek.tint)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(peek.tint.opacity(0.18))
+                    }
                 }
-                Text(peek.title).font(.system(size: 11, weight: .semibold)).lineLimit(1).layoutPriority(1)
-                if let s = peek.subtitle {
-                    Text(s).font(.system(size: 10)).foregroundStyle(Theme.secondary).lineLimit(1)
+                .frame(width: 22, height: 22)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .symbolEffect(.bounce, value: peek.id)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(peek.title).font(.system(size: 11.5, weight: .semibold)).lineLimit(1)
+                    if let s = peek.subtitle {
+                        Text(s).font(.system(size: 9.5)).foregroundStyle(Theme.secondary).lineLimit(1)
+                    }
                 }
                 Spacer(minLength: 0)
+                Capsule().fill(peek.tint).frame(width: 4, height: 16).opacity(0.9)
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 16)
             .frame(maxHeight: .infinity)
         }
         .contentShape(Rectangle())

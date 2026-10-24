@@ -256,42 +256,76 @@ final class WeatherService: NSObject, CLLocationManagerDelegate {
 
 // MARK: - Camera mirror
 
+/// One capture session and one preview layer for the whole app.
+/// All session work runs on `queue`; the preview layer is created once on the main thread
+/// *before* the session is ever configured, so nothing mutates the session concurrently
+/// (doing so made AVFoundation abort with a "collection mutated while enumerated" exception).
 final class CameraService {
     static let shared = CameraService()
     let session = AVCaptureSession()
+    private(set) lazy var previewLayer: AVCaptureVideoPreviewLayer = {
+        let l = AVCaptureVideoPreviewLayer(session: session)
+        l.videoGravity = .resizeAspectFill
+        return l
+    }()
     private var configured = false
     private let queue = DispatchQueue(label: "mynotch.camera")
+    private var pendingStart: DispatchWorkItem?
+    private var pendingStop: DispatchWorkItem?
 
     var authorized: Bool { AVCaptureDevice.authorizationStatus(for: .video) == .authorized }
 
+    /// Starts after a short delay, so flicking past the Mirror tab (hover-to-switch) never touches the camera.
     func start(completion: @escaping (Bool) -> Void) {
+        pendingStop?.cancel()
         switch AVCaptureDevice.authorizationStatus(for: .video) {
-        case .authorized: run(); completion(true)
+        case .authorized:
+            completion(true)
+            scheduleRun()
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .video) { ok in
-                DispatchQueue.main.async { if ok { self.run() }; completion(ok) }
+                DispatchQueue.main.async { completion(ok); if ok { self.scheduleRun() } }
             }
-        default: completion(false)
+        default:
+            completion(false)
         }
+    }
+
+    private func scheduleRun() {
+        _ = previewLayer                       // create on main before any session work
+        pendingStart?.cancel()
+        let w = DispatchWorkItem { [weak self] in self?.queue.async { self?.run() } }
+        pendingStart = w
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: w)
     }
 
     private func run() {
-        queue.async {
-            if !self.configured {
-                self.session.beginConfiguration()
-                self.session.sessionPreset = .high
-                if let device = AVCaptureDevice.default(for: .video), let input = try? AVCaptureDeviceInput(device: device),
-                   self.session.canAddInput(input) {
-                    self.session.addInput(input)
-                }
-                self.session.commitConfiguration()
-                self.configured = true
+        if !configured {
+            session.beginConfiguration()
+            session.sessionPreset = .high
+            if let device = AVCaptureDevice.default(for: .video), let input = try? AVCaptureDeviceInput(device: device),
+               session.canAddInput(input) {
+                session.addInput(input)
             }
-            if !self.session.isRunning { self.session.startRunning() }
+            session.commitConfiguration()
+            if let c = previewLayer.connection, c.isVideoMirroringSupported {
+                c.automaticallyAdjustsVideoMirroring = false
+                c.isVideoMirrored = true
+            }
+            configured = true
         }
+        if !session.isRunning { session.startRunning() }
     }
 
-    func stop() { queue.async { if self.session.isRunning { self.session.stopRunning() } } }
+    func stop() {
+        pendingStart?.cancel()
+        pendingStop?.cancel()
+        let w = DispatchWorkItem { [weak self] in
+            self?.queue.async { if self?.session.isRunning == true { self?.session.stopRunning() } }
+        }
+        pendingStop = w
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: w)
+    }
 }
 
 // MARK: - Currency rates (frankfurter.dev, cached for a day)

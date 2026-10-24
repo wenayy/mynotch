@@ -354,21 +354,32 @@ struct CameraView: View {
 }
 
 private struct CameraPreview: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView {
-        let v = NSView()
-        v.wantsLayer = true
-        let layer = AVCaptureVideoPreviewLayer(session: CameraService.shared.session)
-        layer.videoGravity = .resizeAspectFill
-        layer.connection?.automaticallyAdjustsVideoMirroring = false
-        layer.connection?.isVideoMirrored = true
-        layer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
-        v.layer = layer
-        return v
-    }
-    func updateNSView(_ nsView: NSView, context: Context) {
-        if let l = nsView.layer as? AVCaptureVideoPreviewLayer, let c = l.connection, c.isVideoMirroringSupported {
-            c.automaticallyAdjustsVideoMirroring = false
-            c.isVideoMirrored = true
+    func makeNSView(context: Context) -> PreviewHost { PreviewHost() }
+    func updateNSView(_ nsView: PreviewHost, context: Context) {}
+
+    /// Hosts the shared preview layer as a sublayer (never touches the capture session).
+    final class PreviewHost: NSView {
+        override init(frame: NSRect) {
+            super.init(frame: frame)
+            wantsLayer = true
+            layer?.backgroundColor = NSColor.black.cgColor
+        }
+        required init?(coder: NSCoder) { fatalError() }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard window != nil else { return }
+            let pl = CameraService.shared.previewLayer
+            pl.removeFromSuperlayer()
+            layer?.addSublayer(pl)
+            needsLayout = true
+        }
+
+        override func layout() {
+            super.layout()
+            CATransaction.begin(); CATransaction.setDisableActions(true)
+            CameraService.shared.previewLayer.frame = bounds
+            CATransaction.commit()
         }
     }
 }
