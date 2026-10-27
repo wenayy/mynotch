@@ -28,7 +28,8 @@ private struct NotchBody: View {
         .frame(width: size.width, height: size.height, alignment: .top)
         .clipShape(shape)
         .overlay {
-            if settings.theme == .neon || settings.theme == .glass {
+            // Closed notch must blend into the hardware notch: no outline.
+            if vm.isOpen, settings.theme == .neon || settings.theme == .glass {
                 shape.stroke(settings.theme == .neon ? Theme.accent.opacity(vm.isOpen ? 0.8 : 0.45) : Color.white.opacity(0.12),
                              lineWidth: settings.theme == .neon ? 1.2 : 0.6)
                     .shadow(color: settings.theme == .neon ? Theme.accent.opacity(0.7) : .clear, radius: 6)
