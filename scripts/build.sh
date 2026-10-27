@@ -6,7 +6,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT=$PWD
 APP="$ROOT/build/MyNotch.app"
-VERSION="1.0.4"
+VERSION="1.0.5"
 BUILD_NUM=$(date +%Y%m%d%H%M)
 
 echo "▸ Compiling Swift (release)…"

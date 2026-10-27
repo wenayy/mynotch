@@ -7,6 +7,9 @@ struct AppsView: View {
     private var settings: AppSettings { .shared }
     @State private var running: [NSRunningApplication] = []
     @State private var dropTargeted = false
+    @State private var lowerTab = UserDefaults.standard.string(forKey: "appsLowerTab") ?? "menubar"
+    @State private var extras: [MenuBarExtra] = []
+    @State private var extrasLoaded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -19,7 +22,7 @@ struct AppsView: View {
                     AddPinButton()
                 }
             }
-            .frame(maxHeight: settings.showRunningApps ? 136 : .infinity)
+            .frame(maxHeight: settings.showRunningApps ? 132 : .infinity)
             .background(RoundedRectangle(cornerRadius: 14).strokeBorder(dropTargeted ? Theme.accent : .clear, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])))
             .onDrop(of: [.fileURL], isTargeted: $dropTargeted) { providers in
                 for p in providers {
@@ -34,24 +37,77 @@ struct AppsView: View {
             }
 
             if settings.showRunningApps {
-                SectionLabel(text: "Running")
-                if running.isEmpty {
-                    Text("Every running app is already pinned.").font(.system(size: 10.5)).foregroundStyle(Theme.tertiary).frame(height: 38)
-                } else {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 4) {
-                            ForEach(running, id: \.processIdentifier) { app in
-                                RunningAppIcon(app: app) { vm.close() }
-                            }
-                        }
+                HStack(spacing: 4) {
+                    ForEach([("menubar", "Menu bar"), ("running", "Running")], id: \.0) { key, title in
+                        Button {
+                            lowerTab = key
+                            UserDefaults.standard.set(key, forKey: "appsLowerTab")
+                            if key == "menubar" { loadExtras() }
+                        } label: {
+                            Text(title.uppercased()).font(.system(size: 9.5, weight: .bold)).tracking(0.6)
+                                .foregroundStyle(lowerTab == key ? .white : Theme.tertiary)
+                                .padding(.horizontal, 7).padding(.vertical, 2)
+                                .background(Capsule().fill(lowerTab == key ? Color.white.opacity(0.12) : .clear))
+                        }.buttonStyle(.plain)
                     }
-                    .frame(height: 38)
+                    Spacer()
+                    if lowerTab == "menubar", MenuBarExtras.trusted {
+                        Text("Click an icon to open its menu").font(.system(size: 9.5)).foregroundStyle(Theme.tertiary)
+                        IconButton(symbol: "arrow.clockwise", size: 9, help: "Refresh") { loadExtras() }
+                    }
+                }
+                Group {
+                    if lowerTab == "menubar" { menuBarRow } else { runningRow }
+                }
+                .frame(height: 38)
+            }
+        }
+        .onAppear { refreshRunning(); if lowerTab == "menubar" { loadExtras() } }
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didLaunchApplicationNotification)) { _ in refreshRunning() }
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didTerminateApplicationNotification)) { _ in refreshRunning() }
+    }
+
+    @ViewBuilder private var runningRow: some View {
+        if running.isEmpty {
+            Text("Every running app is already pinned.").font(.system(size: 10.5)).foregroundStyle(Theme.tertiary)
+        } else {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 4) {
+                    ForEach(running, id: \.processIdentifier) { app in RunningAppIcon(app: app) { vm.close() } }
                 }
             }
         }
-        .onAppear(perform: refreshRunning)
-        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didLaunchApplicationNotification)) { _ in refreshRunning() }
-        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didTerminateApplicationNotification)) { _ in refreshRunning() }
+    }
+
+    @ViewBuilder private var menuBarRow: some View {
+        if !MenuBarExtras.trusted {
+            HStack(spacing: 8) {
+                Text("See menu bar icons hidden behind the notch").font(.system(size: 10.5)).foregroundStyle(Theme.secondary)
+                PillButton(title: "Allow Accessibility", prominent: true) { MenuBarExtras.requestAccess() }
+            }
+        } else if extras.isEmpty {
+            Text(extrasLoaded ? "No menu bar icons from other apps." : "Loading…").font(.system(size: 10.5)).foregroundStyle(Theme.tertiary)
+        } else {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 4) {
+                    ForEach(extras) { e in MenuBarExtraIcon(extra: e) { vm.close() } }
+                }
+            }
+        }
+    }
+
+    private func loadExtras() {
+        let rects = NotchManager.shared?.controllers.values.compactMap { c -> CGRect? in
+            let g = c.vm.geometry
+            guard g.hasNotch else { return nil }
+            // Area the notch covers in the menu bar, padded a bit.
+            return CGRect(x: g.screenFrame.midX - g.notchSize.width / 2 - 4, y: g.screenFrame.maxY - g.notchSize.height,
+                          width: g.notchSize.width + 8, height: g.notchSize.height)
+        } ?? []
+        DispatchQueue.global(qos: .userInitiated).async {
+            let list = MenuBarExtras.load(notchRects: rects)
+            DispatchQueue.main.async { extras = list; extrasLoaded = true }
+        }
     }
 
     private var columns: Int { max(4, Int((settings.panelSize.width - 40) / 72)) }
@@ -302,5 +358,32 @@ final class MenuHandler: NSObject {
     @objc private func run(_ sender: NSMenuItem) {
         let a = actions[sender.tag]
         DispatchQueue.main.async { a?() }
+    }
+}
+
+private struct MenuBarExtraIcon: View {
+    let extra: MenuBarExtra
+    var onOpen: () -> Void
+    @State private var hover = false
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            Group {
+                if let icon = extra.icon { Image(nsImage: icon).resizable() } else { Image(systemName: "menubar.rectangle") }
+            }
+            .frame(width: 30, height: 30)
+            if extra.hidden {
+                Image(systemName: "eye.slash.fill").font(.system(size: 7, weight: .bold)).foregroundStyle(.black)
+                    .frame(width: 12, height: 12).background(Circle().fill(Theme.accent)).offset(x: 2, y: 2)
+            }
+        }
+        .scaleEffect(hover ? 1.12 : 1)
+        .onHover { hover = $0 }
+        .animation(.spring(response: 0.25, dampingFraction: 0.6), value: hover)
+        .help(extra.label == extra.appName ? extra.appName : "\(extra.appName) — \(extra.label)" + (extra.hidden ? " (hidden behind the notch)" : ""))
+        .onTapGesture {
+            onOpen()
+            // Let the notch close first so the menu isn't covered.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { MenuBarExtras.open(extra) }
+        }
     }
 }
