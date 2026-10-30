@@ -8,7 +8,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: StatusItemController?
     private var settingsWindow: NSWindow?
 
+    /// Held for the app's lifetime. Without this, macOS App Nap throttles this process's
+    /// background Timers (AI usage refresh, clipboard polling, system stats…) from "every few
+    /// seconds" down to once every hour-plus, since MyNotch has no Dock icon and is backgrounded
+    /// almost all the time — exactly the profile App Nap targets hardest.
+    private var keepAliveActivity: NSObjectProtocol?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        keepAliveActivity = ProcessInfo.processInfo.beginActivity(
+            options: [.userInitiatedAllowingIdleSystemSleep],
+            reason: "Keep live usage/clipboard/system timers accurate while backgrounded"
+        )
         let s = AppSettings.shared
         s.migrateNewTools()
         s.migrateLayoutV3()

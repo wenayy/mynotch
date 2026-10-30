@@ -41,6 +41,16 @@ struct AIUsageView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .onAppear {
+                // Opening this tab is exactly when stale numbers are most visible — refresh if the
+                // last successful fetch is older than the refresh interval (covers a missed timer
+                // tick, e.g. right after waking from sleep or App Nap throttling).
+                let staleAfter = max(60, AppSettings.shared.usageRefreshMinutes * 60)
+                if ai.claude.limits == nil || Date().timeIntervalSince(ai.claude.limits!.fetchedAt) > staleAfter
+                    || ai.codex.limits == nil || Date().timeIntervalSince(ai.codex.limits!.fetchedAt) > staleAfter {
+                    ai.refresh()
+                }
+            }
         }
     }
 
