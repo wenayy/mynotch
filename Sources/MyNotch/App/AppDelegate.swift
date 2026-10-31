@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             options: [.userInitiatedAllowingIdleSystemSleep],
             reason: "Keep live usage/clipboard/system timers accurate while backgrounded"
         )
+        LaunchAtLogin.enableOnFirstRun()
         let s = AppSettings.shared
         s.migrateNewTools()
         s.migrateLayoutV3()
@@ -335,5 +336,12 @@ enum LaunchAtLogin {
     static func set(_ on: Bool) {
         do { if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() } }
         catch { NSLog("MyNotch: launch at login failed: \(error)") }
+    }
+    /// On by default — a notch app is only useful if it's always running. Done once, so turning it off in Settings sticks.
+    static func enableOnFirstRun() {
+        let key = "didDefaultLaunchAtLogin"
+        guard !UserDefaults.standard.bool(forKey: key), Bundle.main.bundlePath.hasPrefix("/Applications/") else { return }
+        set(true)
+        UserDefaults.standard.set(true, forKey: key)
     }
 }

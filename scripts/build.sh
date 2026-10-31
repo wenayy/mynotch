@@ -6,7 +6,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT=$PWD
 APP="$ROOT/build/MyNotch.app"
-VERSION="1.0.7"
+VERSION="1.0.8"
 BUILD_NUM=$(date +%Y%m%d%H%M)
 
 echo "▸ Compiling Swift (release)…"
@@ -72,6 +72,7 @@ if [[ "${1:-}" == "install" ]]; then
   sleep 0.5
   rm -rf /Applications/MyNotch.app
   cp -R "$APP" /Applications/
+  rm -rf "$APP"   # one copy only, or Spotlight/Launchpad show two MyNotch apps
   open /Applications/MyNotch.app
   echo "✓ Installed and launched"
 fi
