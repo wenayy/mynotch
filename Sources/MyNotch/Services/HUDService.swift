@@ -25,8 +25,8 @@ final class HUDService {
 
     @ObservationIgnored private var hideWork: DispatchWorkItem?
     @ObservationIgnored private var device: AudioObjectID = 0
-    @ObservationIgnored private var volumeBlock: AudioObjectPropertyListenerBlock?
-    @ObservationIgnored private var deviceBlock: AudioObjectPropertyListenerBlock?
+    @ObservationIgnored private var volumeBound = false
+    @ObservationIgnored private var deviceBound = false
     @ObservationIgnored private var brightnessTimer: Timer?
     @ObservationIgnored private var lastBrightness: Float = -1
     @ObservationIgnored private var armedAt = Date()
@@ -52,9 +52,12 @@ final class HUDService {
     }
 
     private func teardown() {
-        if let b = volumeBlock { var a = volumeAddress; AudioObjectRemovePropertyListenerBlock(device, &a, .main, b); var m = muteAddress; AudioObjectRemovePropertyListenerBlock(device, &m, .main, b) }
-        if let b = deviceBlock { var a = defaultDeviceAddress; AudioObjectRemovePropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &a, .main, b) }
-        volumeBlock = nil; deviceBlock = nil
+        unbindVolume()
+        if deviceBound {
+            var a = defaultDeviceAddress
+            AudioObjectRemovePropertyListener(AudioObjectID(kAudioObjectSystemObject), &a, hudDeviceProc, selfPtr)
+            deviceBound = false
+        }
         brightnessTimer?.invalidate(); brightnessTimer = nil
         trustTimer?.invalidate(); trustTimer = nil
         if let tap { CGEvent.tapEnable(tap: tap, enable: false) }
@@ -114,32 +117,48 @@ final class HUDService {
         AudioObjectSetPropertyData(device, &a, 0, nil, UInt32(MemoryLayout<UInt32>.size), &value)
     }
 
+    // C-function listeners, not blocks: a Swift closure is re-bridged to a new block on every call,
+    // so RemovePropertyListenerBlock never matched and listeners piled up on each device change.
+    private var selfPtr: UnsafeMutableRawPointer { Unmanaged.passUnretained(self).toOpaque() }
+
     private func installVolumeListener() {
+        bindVolume()
+        var d = defaultDeviceAddress
+        if AudioObjectAddPropertyListener(AudioObjectID(kAudioObjectSystemObject), &d, hudDeviceProc, selfPtr) == noErr {
+            deviceBound = true
+        }
+    }
+
+    private func bindVolume() {
+        unbindVolume()
         device = defaultOutputDevice()
         lastVolume = volume
-        let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
-            guard let self, Date().timeIntervalSince(self.armedAt) > 0.8 else { return }
-            let v = self.volume
-            let m = self.muted
-            if abs(v - self.lastVolume) > 0.001 || m != (self.current?.muted ?? !m) {
-                self.lastVolume = v
-                self.show(.volume, level: Double(v), muted: m)
-            }
-        }
-        volumeBlock = block
-        var a = volumeAddress
-        AudioObjectAddPropertyListenerBlock(device, &a, .main, block)
-        var m = muteAddress
-        AudioObjectAddPropertyListenerBlock(device, &m, .main, block)
+        var a = volumeAddress, m = muteAddress
+        AudioObjectAddPropertyListener(device, &a, hudVolumeProc, selfPtr)
+        AudioObjectAddPropertyListener(device, &m, hudVolumeProc, selfPtr)
+        volumeBound = true
+    }
 
-        let devBlock: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
-            guard let self else { return }
-            let mode = AppSettings.shared.hudMode
-            self.apply(mode)
+    private func unbindVolume() {
+        guard volumeBound else { return }
+        var a = volumeAddress, m = muteAddress
+        AudioObjectRemovePropertyListener(device, &a, hudVolumeProc, selfPtr)
+        AudioObjectRemovePropertyListener(device, &m, hudVolumeProc, selfPtr)
+        volumeBound = false
+    }
+
+    fileprivate func volumeChanged() {
+        guard Date().timeIntervalSince(armedAt) > 0.8 else { return }
+        let v = volume, m = muted
+        if abs(v - lastVolume) > 0.001 || m != (current?.muted ?? !m) {
+            lastVolume = v
+            show(.volume, level: Double(v), muted: m)
         }
-        deviceBlock = devBlock
-        var d = defaultDeviceAddress
-        AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &d, .main, devBlock)
+    }
+
+    fileprivate func outputDeviceChanged() {
+        guard deviceBound else { return }
+        bindVolume()
     }
 
     // MARK: Brightness
@@ -240,4 +259,19 @@ final class HUDService {
         lastBrightness = b
         show(.brightness, level: Double(b))
     }
+}
+
+/// CoreAudio calls these on its own thread; hop to main where all HUD state lives.
+private func hudVolumeProc(_: AudioObjectID, _: UInt32, _: UnsafePointer<AudioObjectPropertyAddress>, _ ctx: UnsafeMutableRawPointer?) -> OSStatus {
+    guard let ctx else { return noErr }
+    let hud = Unmanaged<HUDService>.fromOpaque(ctx).takeUnretainedValue()
+    DispatchQueue.main.async { hud.volumeChanged() }
+    return noErr
+}
+
+private func hudDeviceProc(_: AudioObjectID, _: UInt32, _: UnsafePointer<AudioObjectPropertyAddress>, _ ctx: UnsafeMutableRawPointer?) -> OSStatus {
+    guard let ctx else { return noErr }
+    let hud = Unmanaged<HUDService>.fromOpaque(ctx).takeUnretainedValue()
+    DispatchQueue.main.async { hud.outputDeviceChanged() }
+    return noErr
 }

@@ -6,8 +6,14 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT=$PWD
 APP="$ROOT/build/MyNotch.app"
-VERSION="1.0.8"
+VERSION="1.0.9"
 BUILD_NUM=$(date +%Y%m%d%H%M)
+# The macOS 27.2+ SDK makes SwiftUI's @State a macro whose plugin only ships with full Xcode;
+# with Command Line Tools alone, build against the newest older SDK that's installed.
+if [[ -z "${SDKROOT:-}" ]] && ! xcode-select -p | grep -q Xcode.app; then
+  OLD_SDK=$(ls -d /Library/Developer/CommandLineTools/SDKs/MacOSX26.*.sdk 2>/dev/null | sort -V | tail -1)
+  [[ -n "$OLD_SDK" ]] && export SDKROOT="$OLD_SDK"
+fi
 
 echo "▸ Compiling Swift (release)…"
 swift build -c release --arch arm64 2>&1 | grep -E "error|warning: unre|Compiling|Build complete" | grep -v "^$" || true
