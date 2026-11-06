@@ -91,7 +91,8 @@ final class NowPlayingService {
         p.standardError = FileHandle.nullDevice
         out.fileHandleForReading.readabilityHandler = { [weak self] h in
             let d = h.availableData
-            guard !d.isEmpty else { return }
+            // EOF: without clearing the handler it fires forever with empty data (spins a CPU core).
+            guard !d.isEmpty else { h.readabilityHandler = nil; return }
             self?.parseQueue.async { self?.consume(d) }
         }
         p.terminationHandler = { [weak self] _ in

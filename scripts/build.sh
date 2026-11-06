@@ -6,7 +6,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT=$PWD
 APP="$ROOT/build/MyNotch.app"
-VERSION="1.0.9"
+VERSION="1.0.10"
 BUILD_NUM=$(date +%Y%m%d%H%M)
 # The macOS 27.2+ SDK makes SwiftUI's @State a macro whose plugin only ships with full Xcode;
 # with Command Line Tools alone, build against the newest older SDK that's installed.

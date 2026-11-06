@@ -258,6 +258,12 @@ final class ClaudeTranscriptIndex {
             entriesByFile[path] = list
         }
 
+        // Drop files that aged out of the window, or memory grows with every transcript ever written.
+        let live = Set(files.map { $0.0.path })
+        for path in entriesByFile.keys where !live.contains(path) {
+            entriesByFile[path] = nil
+            cursors[path] = nil
+        }
         let minTime = cutoff.timeIntervalSince1970
         return entriesByFile.values.flatMap { $0 }.filter { $0.time >= minTime }
     }

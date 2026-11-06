@@ -60,6 +60,7 @@ final class ShelfStore {
 
     func remove(_ item: ShelfItem) {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { items.removeAll { $0.id == item.id } }
+        thumbs[item.path] = nil
         if item.path.hasPrefix(folder.path) { try? FileManager.default.removeItem(atPath: item.path) }
         save()
     }
