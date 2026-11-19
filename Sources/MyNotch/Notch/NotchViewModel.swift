@@ -63,7 +63,7 @@ final class NotchViewModel {
 
     var openSize: CGSize {
         CGSize(width: settings.panelSize.width,
-               height: headerHeight + settings.panelSize.contentHeight + (PreviewCenter.shared.active ? PreviewCenter.extraHeight : 0))
+               height: headerHeight + settings.panelSize.contentHeight + (PreviewCenter.shared.active || InlineSearch.shared.url != nil ? PreviewCenter.extraHeight : 0))
     }
 
     var activity: LiveActivity {
@@ -281,6 +281,7 @@ final class NotchViewModel {
         holdOpen = false
         pinned = false
         if PreviewCenter.shared.active { PreviewCenter.shared.close() }
+        InlineSearch.shared.close()
         withAnimation(.spring(response: 0.36, dampingFraction: 0.95)) {
             state = .closed
             hovering = false
@@ -309,6 +310,7 @@ final class NotchViewModel {
     func select(_ tool: ToolKind) {
         guard tool != currentTool else { return }
         if PreviewCenter.shared.active { PreviewCenter.shared.close() }
+        InlineSearch.shared.close()
         withAnimation(.easeInOut(duration: 0.18)) { currentTool = tool }
         settings.lastTool = tool
     }

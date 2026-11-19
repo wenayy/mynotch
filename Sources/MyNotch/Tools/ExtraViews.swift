@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import AVFoundation
+import WebKit
 
 // MARK: - Weather
 
@@ -96,6 +97,7 @@ struct LinksView: View {
     @State private var engine = UserDefaults.standard.string(forKey: "searchEngine") ?? "Google"
     @FocusState private var focused: Bool
     private var settings: AppSettings { .shared }
+    private var inline: InlineSearch { .shared }
 
     static let engines: [(name: String, symbol: String, url: String)] = [
         ("Google", "magnifyingglass", "https://www.google.com/search?q="),
@@ -119,6 +121,9 @@ struct LinksView: View {
             }
             .padding(.horizontal, 12).padding(.vertical, 9)
             .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.white.opacity(0.08)))
+            if let url = inline.url {
+                InlineResults(url: url)
+            } else {
             HStack(spacing: 5) {
                 ForEach(Self.engines, id: \.name) { e in
                     Button {
@@ -158,6 +163,7 @@ struct LinksView: View {
                 }
             }
             Spacer(minLength: 0)
+            }
         }
         .onAppear { DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { focused = true } }
     }
@@ -171,7 +177,10 @@ struct LinksView: View {
         } else if let base = Self.engines.first(where: { $0.name == engine })?.url {
             url = URL(string: base + (q.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? q))
         }
-        if let url { NSWorkspace.shared.open(url); query = ""; vm.close() }
+        // Results open inside the notch; ⌘↩ (or the button there) sends them to the browser.
+        guard let url else { return }
+        if NSEvent.modifierFlags.contains(.command) { NSWorkspace.shared.open(url); query = ""; vm.close() }
+        else { inline.show(url) }
     }
 
     private func addBookmark() {
@@ -179,6 +188,72 @@ struct LinksView: View {
         guard !s.isEmpty else { return }
         if !s.contains("://") { s = "https://" + s }
         if let u = URL(string: s) { settings.bookmarks.append(Pin.from(url: u)); query = "" }
+    }
+}
+
+/// Search results shown inside the open notch, which grows to fit them.
+@Observable
+final class InlineSearch {
+    static let shared = InlineSearch()
+    var url: URL?
+    func show(_ u: URL) { withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) { url = u } }
+    func close() {
+        guard url != nil else { return }
+        withAnimation(.spring(response: 0.36, dampingFraction: 0.9)) { url = nil }
+    }
+}
+
+private struct InlineResults: View {
+    let url: URL
+    @State private var current: URL?
+
+    var body: some View {
+        VStack(spacing: 6) {
+            WebResults(url: url, current: $current)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            HStack {
+                Text((current ?? url).host ?? "").font(.system(size: 10)).foregroundStyle(Theme.secondary).lineLimit(1)
+                Spacer()
+                PillButton(title: "Close", symbol: "xmark") { InlineSearch.shared.close() }
+                PillButton(title: "Open in browser", symbol: "arrow.up.right", prominent: true) {
+                    NSWorkspace.shared.open(current ?? url); InlineSearch.shared.close()
+                }
+            }
+        }
+    }
+}
+
+private struct WebResults: NSViewRepresentable {
+    let url: URL
+    @Binding var current: URL?
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeNSView(context: Context) -> WKWebView {
+        let w = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
+        // Mobile layout fits the narrow notch far better than desktop pages.
+        w.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
+        w.navigationDelegate = context.coordinator
+        w.underPageBackgroundColor = .black
+        w.load(URLRequest(url: url))
+        return w
+    }
+
+    func updateNSView(_ w: WKWebView, context: Context) {
+        context.coordinator.parent = self
+        if context.coordinator.loaded != url { context.coordinator.loaded = url; w.load(URLRequest(url: url)) }
+    }
+
+    final class Coordinator: NSObject, WKNavigationDelegate {
+        var parent: WebResults
+        var loaded: URL?
+        init(_ p: WebResults) { parent = p; loaded = p.url }
+        func webView(_ w: WKWebView, didFinish _: WKNavigation!) { parent.current = w.url }
+        // Links that want a new window (target=_blank) open in the same view.
+        func webView(_ w: WKWebView, decidePolicyFor a: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            if a.targetFrame == nil, let u = a.request.url { w.load(URLRequest(url: u)); decisionHandler(.cancel); return }
+            decisionHandler(.allow)
+        }
     }
 }
 

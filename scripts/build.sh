@@ -6,7 +6,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT=$PWD
 APP="$ROOT/build/MyNotch.app"
-VERSION="1.0.10"
+VERSION="1.0.11"
 BUILD_NUM=$(date +%Y%m%d%H%M)
 # The macOS 27.2+ SDK makes SwiftUI's @State a macro whose plugin only ships with full Xcode;
 # with Command Line Tools alone, build against the newest older SDK that's installed.
@@ -17,8 +17,10 @@ fi
 
 echo "▸ Compiling Swift (release)…"
 swift build -c release --arch arm64 2>&1 | grep -E "error|warning: unre|Compiling|Build complete" | grep -v "^$" || true
-BIN="$ROOT/.build/arm64-apple-macosx/release/MyNotch"
-[[ -x "$BIN" ]] || { echo "✗ Swift build failed"; swift build -c release --arch arm64; exit 1; }
+# Ask SwiftPM where it put the binary (the path moved with newer toolchains), and refuse a stale one.
+BIN="$(swift build -c release --arch arm64 --show-bin-path)/MyNotch"
+[[ -x "$BIN" && "$BIN" -nt "$ROOT/Package.swift" && -z "$(find "$ROOT/Sources" -newer "$BIN" -name '*.swift' | head -1)" ]] \
+  || { echo "✗ Swift build failed or binary is stale"; swift build -c release --arch arm64; exit 1; }
 
 echo "▸ Compiling media bridge…"
 mkdir -p "$ROOT/.build/bridge"

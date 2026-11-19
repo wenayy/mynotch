@@ -152,6 +152,7 @@ final class NotchManager {
         let mods = e.modifierFlags.intersection([.command, .control, .option])
         if e.keyCode == 53 {                                   // Esc
             if PreviewCenter.shared.active { return false }    // preview handles its own Esc
+            if InlineSearch.shared.url != nil { InlineSearch.shared.close(); return true }
             if editing { panel.makeFirstResponder(nil) } else { vm.close() }
             return true
         }
